@@ -10,6 +10,7 @@ from pprint import pprint
 from textblob import TextBlob
 import difflib
 import csv
+from scipy.stats.stats import pearsonr 
 
 app = Flask(__name__,template_folder = "/home/abhishek/hotelReviews/src/web1/templates")
 app.config['STATIC_FOLDER'] = "/home/abhishek/hotelReviews/src/web1/static"
@@ -26,12 +27,98 @@ def hotels():
 @app.route("/hotelcor/<hid>")
 @cross_origin()
 def hotelcor(hid):
-    with open('/home/abhishek/hotelReviews/data/insights/corbyhotels3000.csv', 'rb') as csvfile:
+    with open('/home/abhishek/hotelReviews/data/insights/corbyhotelsAll.csv', 'rb') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
         for row in reader:
             if row[1] == hid:
                 return jsonify({"Service":row[2],"Business Service":row[3],"Cleanliness":row[4],"FrontDesk/Checkin":row[5],"value":row[6],"rooms":row[7],"Sleep Quality":row[8]})
     return jsonify({"Result":"NA"})
+'''
+@app.route("/hotelcora/<hid>")
+@cross_origin()
+def hotelcora(hid):
+    with open('/home/abhishek/hotelReviews/data/json/'+hid+'.json') as data_file:    
+        lst = dict() 
+        data = json.load(data_file)
+        for rev in data["reviews"]:
+            for param in rev["Ratings"]:
+
+                if int(rev["Ratings"][param]) != -1 and rev["Ratings"][param] != "-":
+                    try:
+                        val = int(rev["Ratings"][param])
+                        if param not in lst:
+                            lst[param] = [val]
+                        else:
+                            lst[param].append(val)
+                    except:
+                        pass
+'''
+                
+@app.route("/hotelinfo/<hid>")
+@cross_origin()
+def hotelinfo(hid):
+    with open('/home/abhishek/hotelReviews/data/json/'+hid+'.json') as data_file:    
+        data = json.load(data_file)
+        rdict = dict()
+        cnt = dict()
+        for rev in data["Reviews"]:
+            for key in rev["Ratings"]:
+                if key in rdict:
+                    rdict[key] += int(float(rev["Ratings"][key]))
+                    cnt[key]+= 1
+                else:
+                    rdict[key] = int(float(rev["Ratings"][key]))
+                    cnt[key] = 1
+        for key in rdict:
+            rdict[key] = rdict[key]/cnt[key]
+        if "Name" in data["HotelInfo"]:
+            inf = data["HotelInfo"]["Name"]
+        rdict["Name"] = inf
+        return jsonify(rdict)
+
+@app.route("/hotelpc/<hid>")
+@cross_origin()
+def hotelpc(hid):
+    nphrases = dict()
+    with open('/home/abhishek/hotelReviews/data/json/'+hid+'.json') as data_file:    
+        data = json.load(data_file)
+        for rev in data["Reviews"]:
+            text = (rev["Content"])
+            blob = TextBlob(text)
+            for sentence in blob.sentences:
+                if sentence.sentiment.polarity > 0:
+                    for phrs in sentence.noun_phrases:
+                        if phrs in nphrases:
+                            nphrases[phrs] = nphrases[phrs] + 40
+                        else:
+                            nphrases[phrs] = 40
+    newL = []
+    for key in nphrases:
+        newL.append({"text":key,"size":nphrases[key]})
+    #print newL
+    return jsonify({"Result" : newL})
+
+@app.route("/hotelnc/<hid>")
+@cross_origin()
+def hotelnc(hid):
+    nphrases = dict()
+    with open('/home/abhishek/hotelReviews/data/json/'+hid+'.json') as data_file:    
+        data = json.load(data_file)
+        for rev in data["Reviews"]:
+            text = (rev["Content"])
+            blob = TextBlob(text)
+            for sentence in blob.sentences:
+                if sentence.sentiment.polarity < 0:
+                    for phrs in sentence.noun_phrases:
+                        if phrs in nphrases:
+                            nphrases[phrs] = nphrases[phrs] + 40
+                        else:
+                            nphrases[phrs] = 40
+    newL = []
+    for key in nphrases:
+        newL.append({"text":key,"size":nphrases[key]})
+    return jsonify({"Result" : newL})
+
 @app.route("/hotel/<hid>")
 @cross_origin()
 def hotel(hid):
